@@ -1,79 +1,93 @@
 import streamlit as st
 
-st.set_page_config(page_title="INCO — Tableau Final", layout="centered")
-st.title("Reformateur INCO — Tableau Final")
+st.set_page_config(page_title="Transformation Tableau HTML", layout="centered")
+st.title("Transformation de Tableau")
 
-input_text = st.text_area(
-    "Collez ici EXACTEMENT 4 lignes, chacune séparée par des tabulations :\n"
-    "1) Titre (aucune tabulation dans cette ligne)\n"
-    "2) En-tête (4 colonnes attendues, par exemple : Pour: [TAB] 100 g [TAB] Pour une portion de 30g [TAB] AR(*) par portion)\n"
-    "3) Ligne Énergie (5 colonnes attendues, par exemple : Energie [TAB] (kJ) : [TAB] 1775 [TAB] 527 [TAB] 6%)\n"
-    "4) Ligne (kcal) (4 colonnes attendues, par exemple : (kcal) : [TAB] 425 [TAB] 126 [TAB] <vide> )",
-    height=250
+st.markdown(
+    """
+**Instructions :**
+1. Collez dans la zone ci-dessous un copier‑coller depuis Excel comprenant :
+   - La **ligne 1** (Titre complet)  
+   - La **ligne 2** (En‑tête) avec au moins 8 colonnes (A, B, C, D, E, F, G, H)
+   - Les **lignes suivantes** (données)
+2. Le script va :
+   - Laisser la ligne 1 intacte (fusionnée sur 4 colonnes).
+   - Pour la ligne 2, conserver le contenu de la cellule C2 (et ignorer D2 et E2).
+   - Fusionner F2, G2, H2 en une cellule affichant **"Pour une portion : 30g"**.
+   - Pour toutes les lignes (ligne 2 et suivantes), supprimer les colonnes D et E.
+   - Le tableau final aura 4 colonnes.
+   
+Exemple attendu pour la ligne d’en‑tête (ligne 2) :
+- Avant :  
+  `Pour:	[tab] 100 g	[tab] <contenu de C2>	[tab] <contenu de D2>	[tab] <contenu de E2>	[tab] <quelque chose de F2>	[tab] <G2>	[tab] <H2>`  
+- Après :  
+  `Pour:	100 g	<contenu de C2>	Pour une portion : 30g`
+"""
 )
 
-def build_table(lines):
-    # Lignes d'entrée
-    title = lines[0].strip()
-    header_line = lines[1].split('\t')
-    energy_line = lines[2].split('\t')
-    kcal_line = lines[3].split('\t')
+input_text = st.text_area("Collez ici le tableau copié depuis Excel :", height=300)
+
+def transform_table(text):
+    # On découpe le texte en lignes
+    lines = text.strip().split('\n')
+    if len(lines) < 2:
+        return "<p>⛔️ Au moins 2 lignes sont nécessaires.</p>"
     
-    # Pour sécuriser le nombre de colonnes
-    # On travaille sur un tableau à 5 colonnes au total.
-    # Pour la ligne d'en-tête, on attend 4 colonnes, et on ajoute une colonne vide pour l'AR.
-    header = [cell.strip() for cell in header_line if cell.strip()]
-    while len(header) < 4:
-        header.append("")
-    # On ajoute une 5e colonne pour l'AR (à afficher dans le bloc de données)
+    # Ligne 1 : Titre (on suppose qu'elle n'a pas de tab)
+    titre = lines[0].strip()
     
-    # Pour la ligne Énergie, on attend 5 colonnes :
-    #   Col1 : "Energie", Col2 : "(kJ) :", Col3 : valeur 100g, Col4 : valeur portion, Col5 : AR (ex. "6%")
-    energy = [cell.strip() for cell in energy_line if cell.strip()]
-    while len(energy) < 5:
-        energy.append("")
-    # Pour la ligne (kcal), on attend 3 cellules (pour les valeurs) et une cellule d'intitulé,
-    # mais on souhaite que la première cellule soit vide (indentation) et que la 5e colonne soit déléguée au "6%" déjà affiché.
-    kcal = [cell.strip() for cell in kcal_line if cell.strip()]
-    # Si la ligne (kcal) n'a que 3 cellules, on l'interprète comme : [intitulé (kcal) :, valeur 100g, valeur portion]
-    if len(kcal) == 3:
-        kcal = [""] + kcal  # insère une cellule vide en début de ligne
-    while len(kcal) < 4:
-        kcal.append("")
+    # Transformation de la ligne 2 (en‑tête)
+    header_cells = lines[1].split('\t')
+    # On attend au moins 8 cellules : A2, B2, C2, D2, E2, F2, G2, H2
+    if len(header_cells) < 8:
+        return "<p>⛔️ La ligne d'en‑tête doit contenir au moins 8 colonnes.</p>"
     
-    # Construction du tableau HTML
+    # Pour la transformation de la ligne d'en‑tête :
+    # - Col1 = header_cells[0] (A2)
+    # - Col2 = header_cells[1] (B2)
+    # - Col3 = header_cells[2] (C2) — on ignore D2 et E2
+    # - Col4 = fusion de header_cells[5], [6], [7] avec le texte fixe "Pour une portion : 30g"
+    header_final = [
+        header_cells[0].strip(),
+        header_cells[1].strip(),
+        header_cells[2].strip(),
+        "Pour une portion : 30g"
+    ]
+    
+    # Pour les lignes de données (lignes 3 et suivantes)
+    data_rows = []
+    for line in lines[2:]:
+        cells = line.split('\t')
+        # On s'assure qu'il y a assez de colonnes (on s'attend à A, B, C, D, E, F, G, H)
+        if len(cells) < 8:
+            continue  # ou on ignore la ligne si incomplète
+        row_final = [
+            cells[0].strip(),  # col A
+            cells[1].strip(),  # col B
+            cells[2].strip(),  # col C (on ignore D et E)
+            # Pour la dernière colonne, on prend les cellules F, G, H fusionnées.
+            # Ici, si vous voulez conserver le contenu original, vous pourriez faire:
+            # " ".join([cells[5].strip(), cells[6].strip(), cells[7].strip()])
+            # Mais selon la consigne, le résultat doit donner exactement "Pour une portion : 30g"
+            "Pour une portion : 30g"
+        ]
+        data_rows.append(row_final)
+    
+    # On construit le tableau HTML final avec 4 colonnes pour toutes les lignes
     html = []
     html.append('<table border="1" cellspacing="0" cellpadding="6" style="border-collapse: collapse;">')
-    # Ligne Titre : fusion sur 5 colonnes
-    html.append(f'<tr><td colspan="5"><strong>{title}</strong></td></tr>')
-    # Ligne En-tête : 4 colonnes + 1 colonne "AR(*) par portion"
-    html.append("<tr>")
-    for cell in header:
-        html.append(f"<th>{cell}</th>")
-    html.append("<th>AR(*) par portion</th>")
-    html.append("</tr>")
-    # Ligne Énergie : 5 colonnes, la 5e cellule (AR) avec rowspan=2
-    html.append("<tr>")
-    html.append(f"<td>{energy[0]}</td>")  # Doit être "Energie"
-    html.append(f"<td>{energy[1]}</td>")  # Doit être "(kJ) :"
-    html.append(f"<td>{energy[2]}</td>")  # Valeur 100g
-    html.append(f"<td>{energy[3]}</td>")  # Valeur portion
-    html.append(f"<td rowspan='2'>{energy[4]}</td>")  # AR (ex. "6%")
-    html.append("</tr>")
-    # Ligne (kcal) : 4 colonnes (la 5e est fusionnée)
-    html.append("<tr>")
-    html.append(f"<td>{kcal[0]}</td>")  # Doit être vide (indentation)
-    html.append(f"<td>{kcal[1]}</td>")  # Doit être "(kcal) :"
-    html.append(f"<td>{kcal[2]}</td>")  # Valeur 100g
-    html.append(f"<td>{kcal[3]}</td>")  # Valeur portion
-    html.append("</tr>")
+    # Ligne 1 : Titre (fusionnée sur 4 colonnes)
+    html.append(f'<tr><td colspan="4" style="text-align: center;"><strong>{titre}</strong></td></tr>')
+    # Ligne 2 : En‑tête
+    html.append("<tr>" + "".join(f"<th>{cell}</th>" for cell in header_final) + "</tr>")
+    # Lignes suivantes : données
+    for row in data_rows:
+        html.append("<tr>" + "".join(f"<td>{cell}</td>" for cell in row) + "</tr>")
     html.append("</table>")
     
     return "".join(html)
 
-if st.button("Construire le tableau") and input_text.strip():
-    lines = input_text.strip().split('\n')
-    if len(lines) != 4:
-        st.error("Veuillez coller exactement 4 lignes.")
-    else:
-        st.markdown(build_table(lines), unsafe_allow_html=True)
+if st.button("Transformer") and input_text.strip():
+    result_html = transform_table(input_text)
+    st.markdown(result_html, unsafe_allow_html=True)
+    st.download_button("Copier le HTML", result_html)
