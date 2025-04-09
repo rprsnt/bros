@@ -1,29 +1,45 @@
 import streamlit as st
+import re
 
 def parse_table(text):
     """
-    Transforme le texte collé (avec retours à la ligne et tabulations)
-    en une liste de listes.
+    Transforme le texte copié en une liste de listes.
+    
+    On tente d'abord de découper les colonnes par tabulation.
+    Si aucune tabulation n'est détectée dans une ligne, on découpe par 
+    séquences d'au moins deux espaces.
     """
     rows = text.strip().splitlines()
-    table = [row.split('\t') for row in rows]
+    table = []
+    for row in rows:
+        if "\t" in row:
+            columns = row.split("\t")
+        else:
+            columns = re.split(r'\s{2,}', row)
+        table.append(columns)
     return table
 
 def merge_cells(table, row_index, start_col, num_cols):
     """
     Fusionne les cellules d'une même ligne.
     
-    Pour la ligne d'indice 'row_index', fusionne les cellules de la colonne 'start_col'
-    à 'start_col + num_cols - 1' en concaténant leur contenu (séparé par un espace).
-    Ensuite, les cellules en trop sont supprimées.
+    Pour la ligne d'indice `row_index`, fusionne les cellules allant de la colonne `start_col`
+    à la colonne `start_col + num_cols - 1` en concaténant leur contenu séparé par un espace.
     
-    Retourne un dictionnaire indiquant pour (row_index, start_col) le nombre de colonnes fusionnées.
+    Si la ligne ne comporte pas suffisamment de colonnes, affiche une erreur.
+    Renvoie un dictionnaire merge_info avec la position (row_index, start_col) et le nombre
+    de colonnes fusionnées (à utiliser pour l'attribut colspan en HTML).
     """
     merge_info = {}
-    if row_index < len(table) and start_col < len(table[row_index]):
-        merged_text = " ".join(cell.strip() for cell in table[row_index][start_col:start_col+num_cols])
+    if row_index < len(table):
+        row = table[row_index]
+        if len(row) < start_col + num_cols:
+            st.error(f"La ligne {row_index+1} ne contient pas assez de colonnes pour fusionner {num_cols} cellules à partir de la colonne {start_col+1}.")
+            return merge_info
+        # Concatène le contenu des cellules à fusionner
+        merged_text = " ".join(cell.strip() for cell in row[start_col:start_col+num_cols])
         table[row_index][start_col] = merged_text
-        # Supprimer les cellules supplémentaires
+        # Supprime les cellules supplémentaires
         for _ in range(num_cols - 1):
             del table[row_index][start_col+1]
         merge_info[(row_index, start_col)] = num_cols
@@ -31,22 +47,20 @@ def merge_cells(table, row_index, start_col, num_cols):
 
 def table_to_html(table, merge_info):
     """
-    Convertit la liste de listes en tableau HTML.
-    
-    La fusion des cellules est gérée grâce à l'attribut colspan.
+    Convertit la liste de listes en code HTML, en gérant l'attribut colspan pour les fusions.
     """
     html = '<table border="1" style="border-collapse: collapse;">\n'
     for i, row in enumerate(table):
         html += "  <tr>\n"
-        col_index = 0
-        while col_index < len(row):
-            if (i, col_index) in merge_info:
-                colspan = merge_info[(i, col_index)]
-                html += f'    <td colspan="{colspan}" style="padding:5px;">{row[col_index]}</td>\n'
-                col_index += colspan
+        j = 0
+        while j < len(row):
+            if (i, j) in merge_info:
+                colspan = merge_info[(i, j)]
+                html += f'    <td colspan="{colspan}" style="padding:5px;">{row[j]}</td>\n'
+                j += colspan
             else:
-                html += f'    <td style="padding:5px;">{row[col_index]}</td>\n'
-                col_index += 1
+                html += f'    <td style="padding:5px;">{row[j]}</td>\n'
+                j += 1
         html += "  </tr>\n"
     html += "</table>"
     return html
@@ -54,27 +68,31 @@ def table_to_html(table, merge_info):
 st.title("Conversion de données Excel en Tableau HTML")
 
 st.markdown("### Instructions")
-st.markdown("1. Copiez le contenu depuis Excel (texte tabulé).")
-st.markdown("2. Collez-le ci-dessous dans le champ.")
-st.markdown("3. Cliquez sur **Convertir** pour générer le tableau HTML.")
+st.markdown("1. Copiez le contenu depuis Excel (le texte doit être sous forme tabulée ou avec des espaces multiples).")
+st.markdown("2. Collez-le dans le champ ci-dessous.")
+st.markdown("3. Cliquez sur **Convertir** pour générer le tableau HTML avec fusion des cellules.")
 
-# Zone de texte pour coller le contenu Excel
-user_input = st.text_area("Collez le texte ici :", height=300)
+# Zone de texte pour coller les données
+user_input = st.text_area("Collez ici votre texte :", height=300)
 
 if st.button("Convertir"):
     if user_input.strip():
-        # Transformer le texte en tableau (liste de listes)
+        # Transformer le texte collé en tableau (liste de listes)
         table = parse_table(user_input)
-        # Fusionner la deuxième ligne (indice 1) pour les colonnes 6, 7, 8 (indices 5, 6, 7)
+        st.write("Tableau brut :", table)
+        
+        # On fusionne la deuxième ligne (indice 1) pour les colonnes F2, G2 et H2.
+        # En considérant A=colonne 1, F correspond à l'indice 5 (colonnes 6, 7, 8 = indices 5,6,7).
         merge_info = merge_cells(table, row_index=1, start_col=5, num_cols=3)
-        # Générer le code HTML
+        st.write("Informations de fusion :", merge_info)
+        
+        # Conversion en HTML
         html_output = table_to_html(table, merge_info)
         
         st.markdown("### Tableau HTML généré")
-        # Affiche le tableau HTML (attention : utilisation de unsafe_allow_html)
         st.markdown(html_output, unsafe_allow_html=True)
         
-        st.markdown("### Code HTML")
+        st.markdown("### Code HTML généré")
         st.code(html_output, language='html')
     else:
         st.error("Veuillez coller vos données avant de cliquer sur Convertir.")
