@@ -29,15 +29,15 @@ html_template = """
 </html>
 """
 
-# Fonction pour parser un tableau brut collé
+# Fonction pour parser le tableau brut collé
 def parse_raw_table(raw_text):
     # Séparer les lignes
     lines = raw_text.strip().split("\n")
-    # Séparer les colonnes par tabulation ou espaces multiples
+    # Séparer les colonnes par tabulations ou espaces multiples
     data = [line.split("\t") for line in lines]
     return data
 
-# Entrée utilisateur : collez ici le tableau brut
+# Entrée utilisateur : collez ici le tableau brut depuis Excel
 raw_table = """
 Pour:\t100 g\tPour une portion de 30 g\tAR(*) par portion
 Energie (kJ):\t1775\t527\t6%
@@ -63,4 +63,4 @@ output_path = "etiquetage_nutritionnel.html"
 with open(output_path, "w", encoding="utf-8") as f:
     f.write(html_output)
 
-print(f"Le fichier HTML a été généré : {output_path
+print(f"Le fichier HTML a été généré : {output_path}")
