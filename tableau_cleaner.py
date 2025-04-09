@@ -1,30 +1,20 @@
 import streamlit as st
 
-st.set_page_config(page_title="Reformateur INCO — Energie + kcal correct", layout="centered")
-st.title("🧼 Reformateur INCO — Bloc Energie/kcal avec AR fusionné")
+st.set_page_config(page_title="INCO Energie/kcal", layout="centered")
+st.title("Reformateur INCO — Bloc Energie / kcal")
 
-st.markdown("""
-Ce script traite les 4 lignes :
-- Titre sur toute la largeur (colspan=4)
-- En-tête avec fusion "Pour une portion de XXg"
-- Energie (kJ) sur une ligne
-- (kcal) : sur la ligne suivante
-- Le "6%" est fusionné verticalement sur 2 lignes (rowspan=2)
-""")
+input_text = st.text_area("Colle les 4 lignes :", height=300)
 
-input_text = st.text_area("📋 Colle ici les 4 lignes :", height=300)
+def render_table(lignes):
+    c1 = [col.strip() for col in lignes[2].split('\t') if col.strip() and col.strip() != '±']
+    c2 = [col.strip() for col in lignes[3].split('\t') if col.strip() and col.strip() != '±']
 
-def parser(lignes: list[str]) -> str:
-    if len(lignes) < 4:
-        return "<p>⛔️ Merci de coller exactement les 4 lignes</p>"
+    html = "<table border='1' cellspacing='0' cellpadding='6' style='border-collapse: collapse;'>"
 
-    lignes_nettoyees = []
+    # Ligne 1 : titre
+    html += f"<tr><td colspan='5'><strong>{lignes[0].strip()}</strong></td></tr>"
 
-    # 1. Ligne titre
-    titre = lignes[0].strip()
-    lignes_nettoyees.append(f'<tr><td colspan="4"><strong>{titre}</strong></td></tr>')
-
-    # 2. Ligne en-tête
+    # Ligne 2 : en-tête avec fusion portion
     en_tete = lignes[1].split('\t')
     fusion = []
     i = 0
@@ -36,27 +26,17 @@ def parser(lignes: list[str]) -> str:
             if en_tete[i].strip():
                 fusion.append(en_tete[i].strip())
             i += 1
-    lignes_nettoyees.append('<tr>' + ''.join([f'<th>{cell}</th>' for cell in fusion]) + '</tr>')
+    html += '<tr>' + ''.join(f'<th>{col}</th>' for col in fusion) + '</tr>'
 
-    # 3. Ligne Energie
-    c1 = [col.strip() for col in lignes[2].split('\t') if col.strip() and col.strip() != '±']
-    c2 = [col.strip() for col in lignes[3].split('\t') if col.strip() and col.strip() != '±']
+    # Ligne 3 : Energie (kJ)
+    html += f"<tr><td>Energie</td><td>{c1[0]}</td><td>{c1[1]}</td><td>{c1[3]}</td><td rowspan='2'>{c1[4]}</td></tr>"
 
-    if len(c1) < 5 or len(c2) < 3:
-        return "<p>⛔️ Données incomplètes</p>"
+    # Ligne 4 : (kcal)
+    html += f"<tr><td></td><td>{c2[0]}</td><td>{c2[1]}</td><td>{c2[2]}</td></tr>"
 
-    lignes_nettoyees.append(
-        f"<tr><td>{c1[0]}</td><td>{c1[1]}</td><td>{c1[3]}</td><td rowspan='2'>{c1[4]}</td></tr>"
-    )
-    lignes_nettoyees.append(
-        f"<tr><td>{c2[0]}</td><td>{c2[1]}</td><td>{c2[2]}</td></tr>"
-    )
-
-    html = "<table border='1' cellspacing='0' cellpadding='6' style='border-collapse: collapse;'>" + ''.join(lignes_nettoyees) + "</table>"
+    html += "</table>"
     return html
 
-if st.button("🔄 Générer le tableau") and input_text.strip():
+if st.button("Générer") and input_text.strip():
     lignes = input_text.strip().split('\n')
-    resultat = parser(lignes)
-    st.markdown("### ✅ Résultat")
-    st.markdown(resultat, unsafe_allow_html=True)
+    st.markdown(render_table(lignes), unsafe_allow_html=True)
