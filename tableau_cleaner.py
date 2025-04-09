@@ -3,13 +3,14 @@ import streamlit as st
 st.set_page_config(page_title="Nettoyeur Excel INCO", layout="centered")
 
 st.title("🧼 Nettoyeur de tableau Excel (INCO)")
+
 st.markdown("""
-Colle ci-dessous un tableau brut copié depuis Excel.  
-👉 Le script supprimera les colonnes `±`, fusionnera les colonnes "Pour une portion : 30 g",  
-et affichera un **résultat propre** que tu peux **recoller directement dans Excel**.
+Colle ici un tableau brut copié depuis Excel.  
+👉 On enlève les `±`, on fusionne les colonnes de la portion,  
+et tu pourras **copier le résultat dans le presse-papier** pour le recoller directement dans Excel.
 """)
 
-input_text = st.text_area("📋 Ton tableau brut (copié depuis Excel) :", height=300)
+input_text = st.text_area("📋 Colle ici ton tableau :", height=300)
 
 def nettoyer(table: str) -> str:
     lignes = table.strip().split('\n')
@@ -18,7 +19,7 @@ def nettoyer(table: str) -> str:
     for i, ligne in enumerate(lignes):
         cols = ligne.split('\t')
 
-        # Supprimer les colonnes "±" et leurs valeurs
+        # Supprimer ± et la valeur suivante
         clean = []
         skip = False
         for col in cols:
@@ -50,20 +51,33 @@ def nettoyer(table: str) -> str:
 if st.button("🔄 Nettoyer le tableau") and input_text.strip():
     result = nettoyer(input_text)
 
-    st.subheader("✅ Résultat prêt à coller dans Excel :")
-    st.code(result, language='text')
+    st.subheader("✅ Résultat à copier dans Excel :")
+    st.text_area("🧾 Résultat :", value=result, height=300, key="result_area")
 
-    # Ajouter un bouton de copie dans le presse-papier
-    st.markdown(f"""
-    <button onclick="navigator.clipboard.writeText(`{result}`)" style="
-        background-color:#4CAF50;
-        color:white;
-        padding:10px 15px;
-        border:none;
-        border-radius:5px;
-        cursor:pointer;
-        font-weight:bold;
-    ">
-        📋 Copier dans le presse-papier
-    </button>
+    st.markdown("""
+        <script>
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert("✅ Résultat copié dans le presse-papier !");
+            });
+        }
+
+        const btn = document.getElementById("copy-btn");
+        if (btn) {
+            btn.onclick = function() {
+                const text = document.getElementById("result_area").value;
+                copyToClipboard(text);
+            }
+        }
+        </script>
+        <button id="copy-btn" style="
+            background-color:#4CAF50;
+            color:white;
+            padding:10px 15px;
+            border:none;
+            border-radius:5px;
+            cursor:pointer;
+            font-weight:bold;
+            margin-top:10px;
+        ">📋 Copier dans le presse-papier</button>
     """, unsafe_allow_html=True)
