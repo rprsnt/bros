@@ -2,17 +2,22 @@ import streamlit as st
 
 st.set_page_config(page_title="Reformateur INCO", layout="centered")
 
-st.title("🧼 Reformateur de tableau Excel INCO (structure stricte)")
+st.title("🧼 Reformateur de tableau Excel INCO")
 
 st.markdown("""
 Ce script :
-- Supprime toutes les colonnes `±` **et** la valeur qui suit
-- Fusionne `"Pour une portion :"`, `30`, `g` → `"Pour une portion de 30g"`
+- Supprime les colonnes `±` et leurs valeurs
 - Supprime les colonnes vides et les `#REF!`
-- Respecte strictement la **structure et les alignements**
+- Fusionne les **3 colonnes** "Pour une portion :", valeur, unité (ex : `30`, `g`) **sans modifier leur contenu**
+- Reproduit fidèlement un tableau **à 4 colonnes** :
+    - Colonne 1 : intitulé complet
+    - Colonne 2 : 100 g
+    - Colonne 3 : portion
+    - Colonne 4 : AR (si présent)
+⚠️ Aucun texte n’est modifié. Le script suit uniquement la structure.
 """)
 
-input_text = st.text_area("📋 Colle ici ton tableau brut depuis Excel :", height=300)
+input_text = st.text_area("📋 Colle ici ton tableau Excel brut :", height=300)
 
 def reformater(table: str) -> str:
     lignes = table.strip().split('\n')
@@ -21,7 +26,7 @@ def reformater(table: str) -> str:
     for idx, ligne in enumerate(lignes):
         colonnes = ligne.split('\t')
 
-        # Étape 1 : supprimer les colonnes ± et leurs valeurs
+        # Supprimer ± et sa valeur
         i = 0
         clean = []
         while i < len(colonnes):
@@ -31,43 +36,49 @@ def reformater(table: str) -> str:
                 clean.append(colonnes[i])
                 i += 1
 
-        # Étape 2 : supprimer les colonnes vides ou contenant #REF!
-        clean = [col for col in clean if col.strip() != '' and not col.strip().startswith('#REF!')]
+        # Supprimer colonnes vides et #REF!
+        clean = [c for c in clean if c.strip() and not c.strip().startswith('#REF!')]
 
-        # Étape 3 : fusionner "Pour une portion :", "30", "g" → "Pour une portion de 30g"
-        if idx == 1:  # ligne des en-têtes
+        # Ligne d'en-tête (avec "Pour une portion :", valeur, g)
+        if idx == 1:
             fusion = []
-            i = 0
-            while i < len(clean):
-                if clean[i].strip().startswith("Pour une portion"):
-                    fusion.append("Pour une portion de 30g")
-                    i += 3
+            j = 0
+            while j < len(clean):
+                if clean[j].strip().startswith("Pour une portion") and j + 2 < len(clean):
+                    portion_fusion = f"{clean[j].strip()} {clean[j+1].strip()}{clean[j+2].strip()}"
+                    fusion.append(portion_fusion)
+                    j += 3
                 else:
-                    fusion.append(clean[i])
-                    i += 1
+                    fusion.append(clean[j].strip())
+                    j += 1
             lignes_nettoyees.append('\t'.join(fusion))
+            continue
+
+        # Données classiques → structure à 4 colonnes : label, val100g, valportion, AR
+        if len(clean) >= 4:
+            lignes_nettoyees.append('\t'.join([clean[0], clean[1], clean[2], clean[3]]))
+        elif len(clean) == 3:
+            lignes_nettoyees.append('\t'.join([clean[0], clean[1], clean[2], '']))
         else:
-            lignes_nettoyees.append('\t'.join(clean))
+            continue
 
     return '\n'.join(lignes_nettoyees)
 
 if st.button("🔄 Reformater") and input_text.strip():
     resultat = reformater(input_text)
 
-    st.subheader("✅ Résultat tabulé à coller dans Excel :")
-    st.text_area("🧾 Résultat brut :", value=resultat, height=300)
+    st.subheader("✅ Résultat brut (collable dans Excel) :")
+    st.text_area("🧾 Résultat :", value=resultat, height=300)
 
-    # Tableau HTML (copiable dans Word / CKEditor)
-    st.subheader("📋 Ou copie ce tableau visuel pour CKEditor / Word :")
+    st.subheader("📋 Aperçu du tableau (copiable dans CKEditor, Word...) :")
 
     html = "<table border='1' cellspacing='0' cellpadding='4'>"
     for ligne in resultat.strip().split('\n'):
         html += "<tr>"
         for cellule in ligne.split('\t'):
-            tag = "th" if ligne == resultat.strip().split('\n')[1] else "td"
-            html += f"<{tag}>{cellule.strip()}</{tag}>"
+            html += f"<td>{cellule.strip()}</td>"
         html += "</tr>"
     html += "</table>"
 
     st.markdown(html, unsafe_allow_html=True)
-    st.markdown("_👉 Sélectionne manuellement ce tableau, puis colle-le dans CKEditor ou Word._")
+    st.markdown("_Sélectionne ce tableau à la main pour le copier dans CKEditor ou Word._")
