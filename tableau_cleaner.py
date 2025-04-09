@@ -1,42 +1,50 @@
-import streamlit as st
+import pandas as pd
+from jinja2 import Template
 
-st.set_page_config(page_title="INCO Energie/kcal", layout="centered")
-st.title("Reformateur INCO — Bloc Energie / kcal")
+# Charger le fichier Excel
+file_path = "votre_fichier.xlsx"
+data = pd.read_excel(file_path)
 
-input_text = st.text_area("Colle les 4 lignes :", height=300)
+# Modèle HTML
+html_template = """
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Étiquetage Nutritionnel</title>
+</head>
+<body>
+    <table border="1">
+        <caption>ETIQUETAGE NUTRITIONNEL INCO POUR PAYS CE (Règlement UE N° 1169/2011 du 25-10-2011)</caption>
+        <tr>
+            <th>Pour:</th>
+            <th>100 g</th>
+            <th>Pour une portion de 30g</th>
+            <th>AR(*) par portion</th>
+        </tr>
+        {% for row in data %}
+        <tr>
+            <td>{{ row[0] }}</td>
+            <td>{{ row[1] }}</td>
+            <td>{{ row[2] }}</td>
+            <td>{{ row[3] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
+"""
 
-def render_table(lignes):
-    c1 = [col.strip() for col in lignes[2].split('\t') if col.strip() and col.strip() != '±']
-    c2 = [col.strip() for col in lignes[3].split('\t') if col.strip() and col.strip() != '±']
+# Convertir le tableau en liste de dictionnaires pour le modèle
+data_dict = data.values.tolist()
 
-    html = "<table border='1' cellspacing='0' cellpadding='6' style='border-collapse: collapse;'>"
+# Créer le HTML
+template = Template(html_template)
+html_output = template.render(data=data_dict)
 
-    # Ligne 1 : titre
-    html += f"<tr><td colspan='5'><strong>{lignes[0].strip()}</strong></td></tr>"
+# Sauvegarder dans un fichier
+output_path = "etiquetage_nutritionnel.html"
+with open(output_path, "w", encoding="utf-8") as f:
+    f.write(html_output)
 
-    # Ligne 2 : en-tête avec fusion portion
-    en_tete = lignes[1].split('\t')
-    fusion = []
-    i = 0
-    while i < len(en_tete):
-        if en_tete[i].strip().startswith("Pour une portion") and i + 2 < len(en_tete):
-            fusion.append(f"Pour une portion de {en_tete[i+1].strip()}{en_tete[i+2].strip()}")
-            i += 3
-        else:
-            if en_tete[i].strip():
-                fusion.append(en_tete[i].strip())
-            i += 1
-    html += '<tr>' + ''.join(f'<th>{col}</th>' for col in fusion) + '</tr>'
-
-    # Ligne 3 : Energie (kJ)
-    html += f"<tr><td>Energie</td><td>{c1[0]}</td><td>{c1[1]}</td><td>{c1[3]}</td><td rowspan='2'>{c1[4]}</td></tr>"
-
-    # Ligne 4 : (kcal)
-    html += f"<tr><td></td><td>{c2[0]}</td><td>{c2[1]}</td><td>{c2[2]}</td></tr>"
-
-    html += "</table>"
-    return html
-
-if st.button("Générer") and input_text.strip():
-    lignes = input_text.strip().split('\n')
-    st.markdown(render_table(lignes), unsafe_allow_html=True)
+print(f"Le fichier HTML a été généré : {output_path}")
