@@ -1,51 +1,55 @@
 import streamlit as st
 
-st.set_page_config(page_title="Reformateur INCO — Titre + Energie + kcal", layout="centered")
-st.title("🧼 Reformateur INCO")
+st.set_page_config(page_title="Reformateur INCO — Energie + kcal correct", layout="centered")
+st.title("🧼 Reformateur INCO — Bloc Energie/kcal avec AR fusionné")
 
-st.markdown("Ce script affiche le titre, l’en-tête, et le bloc Énergie/kcal avec `6%` fusionné.")
+st.markdown("""
+Ce script traite les 4 lignes :
+- Titre sur toute la largeur (colspan=4)
+- En-tête avec fusion "Pour une portion de XXg"
+- Energie (kJ) sur une ligne
+- (kcal) : sur la ligne suivante
+- Le "6%" est fusionné verticalement sur 2 lignes (rowspan=2)
+""")
 
-input_text = st.text_area("📋 Colle ici les 4 lignes (titre, en-tête, énergie, kcal) :", height=300)
+input_text = st.text_area("📋 Colle ici les 4 lignes :", height=300)
 
 def parser(lignes: list[str]) -> str:
     if len(lignes) < 4:
-        return "<p>⛔️ Il faut coller les 4 lignes</p>"
+        return "<p>⛔️ Merci de coller exactement les 4 lignes</p>"
 
     lignes_nettoyees = []
 
-    # Titre
+    # 1. Ligne titre
     titre = lignes[0].strip()
-    lignes_nettoyees.append(f'<tr><td colspan="5"><strong>{titre}</strong></td></tr>')
+    lignes_nettoyees.append(f'<tr><td colspan="4"><strong>{titre}</strong></td></tr>')
 
-    # En-tête (fusion portion)
-    colonnes = lignes[1].split('\t')
-    clean = [c.strip() for c in colonnes if c.strip()]
+    # 2. Ligne en-tête
+    en_tete = lignes[1].split('\t')
     fusion = []
     i = 0
-    while i < len(clean):
-        if clean[i].startswith("Pour une portion") and i+2 < len(clean):
-            fusion.append(f"Pour une portion de {clean[i+1]}{clean[i+2]}")
+    while i < len(en_tete):
+        if en_tete[i].strip().startswith("Pour une portion") and i + 2 < len(en_tete):
+            fusion.append(f"Pour une portion de {en_tete[i+1].strip()}{en_tete[i+2].strip()}")
             i += 3
         else:
-            fusion.append(clean[i])
+            if en_tete[i].strip():
+                fusion.append(en_tete[i].strip())
             i += 1
-    lignes_nettoyees.append('<tr>' + ''.join([f'<th>{c}</th>' for c in fusion]) + '</tr>')
+    lignes_nettoyees.append('<tr>' + ''.join([f'<th>{cell}</th>' for cell in fusion]) + '</tr>')
 
-    # Ligne énergie
+    # 3. Ligne Energie
     c1 = [col.strip() for col in lignes[2].split('\t') if col.strip() and col.strip() != '±']
-    # Ligne kcal
     c2 = [col.strip() for col in lignes[3].split('\t') if col.strip() and col.strip() != '±']
 
     if len(c1) < 5 or len(c2) < 3:
-        return "<p>⛔️ Données énergie/kcal incomplètes</p>"
+        return "<p>⛔️ Données incomplètes</p>"
 
-    # Ligne 1 : Energie
     lignes_nettoyees.append(
-        f"<tr><td>Energie</td><td>{c1[0]}</td><td>{c1[1]}</td><td>{c1[3]}</td><td rowspan='2'>{c1[4]}</td></tr>"
+        f"<tr><td>{c1[0]}</td><td>{c1[1]}</td><td>{c1[3]}</td><td rowspan='2'>{c1[4]}</td></tr>"
     )
-    # Ligne 2 : kcal
     lignes_nettoyees.append(
-        f"<tr><td></td><td>{c2[0]}</td><td>{c2[1]}</td><td>{c2[2]}</td></tr>"
+        f"<tr><td>{c2[0]}</td><td>{c2[1]}</td><td>{c2[2]}</td></tr>"
     )
 
     html = "<table border='1' cellspacing='0' cellpadding='6' style='border-collapse: collapse;'>" + ''.join(lignes_nettoyees) + "</table>"
