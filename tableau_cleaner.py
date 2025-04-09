@@ -6,63 +6,38 @@ st.title("Reformateur INCO — Tableau Final")
 input_text = st.text_area(
     "Collez ici EXACTEMENT 4 lignes, chacune séparée par des tabulations :\n"
     "1) Titre (aucune tabulation dans cette ligne)\n"
-    "2) En-tête (4 colonnes attendues, par exemple : Pour: [TAB] 100 g [TAB] Pour une portion : [TAB] AR(*) par portion)\n"
-    "   Attention : si le collage depuis Excel vous fournit plus de 4 cellules sur cette ligne (ex. : Pour: [TAB] 100 g [TAB] Pour une portion : [TAB] 30 [TAB] g [TAB] AR(*) par portion),\n"
-    "   la portion commençant par « Pour une portion » sera automatiquement fusionnée avec les 2 cellules suivantes.\n"
-    "3) Ligne Énergie (5 colonnes attendues, par exemple : Energie [TAB] (kJ) : [TAB] 1775 [TAB] 527 [TAB] 6%)\n"
-    "4) Ligne (kcal) (4 colonnes attendues, par exemple : (kcal) : [TAB] 425 [TAB] 126 [TAB] <vide>)",
+    "2) En-tête (4 colonnes attendues, par exemple : Pour: [TAB] 100 g [TAB] Pour une portion de 30g [TAB] AR(*) par portion)\n"
+    "3) Ligne Énergie (5 colonnes attendues, par exemple : Energie [TAB] (kJ) : [TAB] 1775 [TAB] 527 [TAB] 6%)\n"
+    "4) Ligne (kcal) (4 colonnes attendues, par exemple : (kcal) : [TAB] 425 [TAB] 126 [TAB] <vide> )",
     height=250
 )
 
-def merge_header_cells(header):
-    """
-    Cherche dans la liste header une cellule dont le contenu commence par "pour une portion"
-    (insensible à la casse) et, si trouvée et suivie d'au moins 2 autres cellules, les fusionne.
-    Par exemple, si header vaut:
-        ["Pour:", "100 g", "Pour une portion :", "30", "g", "Autre"],
-    alors le résultat sera:
-        ["Pour:", "100 g", "Pour une portion : 30 g", "Autre"].
-    """
-    for i, cell in enumerate(header):
-        if cell.lower().startswith("pour une portion"):
-            if len(header) >= i + 3:
-                merged = " ".join(header[i:i+3])
-                header[i] = merged
-                # Supprimer les deux cellules suivantes
-                del header[i+1:i+3]
-            break
-    return header
-
 def build_table(lines):
-    # Traitement de la première ligne : le titre
+    # Lignes d'entrée
     title = lines[0].strip()
-    
-    # Traitement de la deuxième ligne (En-tête)
-    raw_header = lines[1].split('\t')
-    # On retire les cellules vides éventuelles
-    header = [cell.strip() for cell in raw_header if cell.strip()]
-    # Si la ligne contient plus de 4 cellules, on tente de fusionner les cellules relatives à "Pour une portion"
-    if len(header) > 4:
-        header = merge_header_cells(header)
-    # Ajustement pour s'assurer d'avoir exactement 4 cellules
-    if len(header) > 4:
-        header = header[:4]
-    elif len(header) < 4:
-        while len(header) < 4:
-            header.append("")
-    
-    # Traitement de la troisième ligne (Ligne Énergie)
+    header_line = lines[1].split('\t')
     energy_line = lines[2].split('\t')
+    kcal_line = lines[3].split('\t')
+    
+    # Pour sécuriser le nombre de colonnes
+    # On travaille sur un tableau à 5 colonnes au total.
+    # Pour la ligne d'en-tête, on attend 4 colonnes, et on ajoute une colonne vide pour l'AR.
+    header = [cell.strip() for cell in header_line if cell.strip()]
+    while len(header) < 4:
+        header.append("")
+    # On ajoute une 5e colonne pour l'AR (à afficher dans le bloc de données)
+    
+    # Pour la ligne Énergie, on attend 5 colonnes :
+    #   Col1 : "Energie", Col2 : "(kJ) :", Col3 : valeur 100g, Col4 : valeur portion, Col5 : AR (ex. "6%")
     energy = [cell.strip() for cell in energy_line if cell.strip()]
     while len(energy) < 5:
         energy.append("")
-    
-    # Traitement de la quatrième ligne (Ligne (kcal))
-    kcal_line = lines[3].split('\t')
+    # Pour la ligne (kcal), on attend 3 cellules (pour les valeurs) et une cellule d'intitulé,
+    # mais on souhaite que la première cellule soit vide (indentation) et que la 5e colonne soit déléguée au "6%" déjà affiché.
     kcal = [cell.strip() for cell in kcal_line if cell.strip()]
-    # Si seulement 3 cellules, on insère une cellule vide en début pour l'indentation
+    # Si la ligne (kcal) n'a que 3 cellules, on l'interprète comme : [intitulé (kcal) :, valeur 100g, valeur portion]
     if len(kcal) == 3:
-        kcal = [""] + kcal
+        kcal = [""] + kcal  # insère une cellule vide en début de ligne
     while len(kcal) < 4:
         kcal.append("")
     
@@ -71,15 +46,13 @@ def build_table(lines):
     html.append('<table border="1" cellspacing="0" cellpadding="6" style="border-collapse: collapse;">')
     # Ligne Titre : fusion sur 5 colonnes
     html.append(f'<tr><td colspan="5"><strong>{title}</strong></td></tr>')
-    
-    # Ligne En-tête : 4 colonnes issues de la donnée + 1 colonne fixe "AR(*) par portion"
+    # Ligne En-tête : 4 colonnes + 1 colonne "AR(*) par portion"
     html.append("<tr>")
     for cell in header:
         html.append(f"<th>{cell}</th>")
     html.append("<th>AR(*) par portion</th>")
     html.append("</tr>")
-    
-    # Ligne Énergie : 5 colonnes, la 5ᵉ cellule (AR) avec rowspan=2
+    # Ligne Énergie : 5 colonnes, la 5e cellule (AR) avec rowspan=2
     html.append("<tr>")
     html.append(f"<td>{energy[0]}</td>")  # Doit être "Energie"
     html.append(f"<td>{energy[1]}</td>")  # Doit être "(kJ) :"
@@ -87,8 +60,7 @@ def build_table(lines):
     html.append(f"<td>{energy[3]}</td>")  # Valeur portion
     html.append(f"<td rowspan='2'>{energy[4]}</td>")  # AR (ex. "6%")
     html.append("</tr>")
-    
-    # Ligne (kcal) : 4 colonnes (la 5ᵉ est déléguée à la cellule en rowspan)
+    # Ligne (kcal) : 4 colonnes (la 5e est fusionnée)
     html.append("<tr>")
     html.append(f"<td>{kcal[0]}</td>")  # Doit être vide (indentation)
     html.append(f"<td>{kcal[1]}</td>")  # Doit être "(kcal) :"
@@ -104,5 +76,4 @@ if st.button("Construire le tableau") and input_text.strip():
     if len(lines) != 4:
         st.error("Veuillez coller exactement 4 lignes.")
     else:
-        html_table = build_table(lines)
-        st.markdown(html_table, unsafe_allow_html=True)
+        st.markdown(build_table(lines), unsafe_allow_html=True)
