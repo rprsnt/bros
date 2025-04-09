@@ -1,23 +1,18 @@
 import streamlit as st
 
 st.set_page_config(page_title="Reformateur INCO", layout="centered")
-
 st.title("🧼 Reformateur de tableau Excel INCO")
 
 st.markdown("""
 Ce script :
 - Supprime les colonnes `±` et leurs valeurs
 - Supprime les colonnes vides et les `#REF!`
-- Fusionne les **3 colonnes** "Pour une portion :", valeur, unité (ex : `30`, `g`) **sans modifier leur contenu**
-- Reproduit fidèlement un tableau **à 4 colonnes** :
-    - Colonne 1 : intitulé complet
-    - Colonne 2 : 100 g
-    - Colonne 3 : portion
-    - Colonne 4 : AR (si présent)
-⚠️ Aucun texte n’est modifié. Le script suit uniquement la structure.
+- Fusionne les 3 colonnes `"Pour une portion :"`, `30`, `g` **en une seule**, sans modifier leur contenu
+- Conserve les unités (kJ, kcal, g) dans la **colonne 1 uniquement**
+- Produit un tableau à **4 colonnes fixes** : Label – 100g – Portion – AR
 """)
 
-input_text = st.text_area("📋 Colle ici ton tableau Excel brut :", height=300)
+input_text = st.text_area("📋 Colle ici ton tableau brut depuis Excel :", height=300)
 
 def reformater(table: str) -> str:
     lignes = table.strip().split('\n')
@@ -26,7 +21,7 @@ def reformater(table: str) -> str:
     for idx, ligne in enumerate(lignes):
         colonnes = ligne.split('\t')
 
-        # Supprimer ± et sa valeur
+        # Étape 1 : suppression de ± et de la valeur suivante
         i = 0
         clean = []
         while i < len(colonnes):
@@ -36,17 +31,17 @@ def reformater(table: str) -> str:
                 clean.append(colonnes[i])
                 i += 1
 
-        # Supprimer colonnes vides et #REF!
+        # Étape 2 : suppression des colonnes vides et #REF!
         clean = [c for c in clean if c.strip() and not c.strip().startswith('#REF!')]
 
-        # Ligne d'en-tête (avec "Pour une portion :", valeur, g)
+        # Étape 3 : ligne d'en-tête à traiter à part (fusion "Pour une portion :", val, unité)
         if idx == 1:
             fusion = []
             j = 0
             while j < len(clean):
                 if clean[j].strip().startswith("Pour une portion") and j + 2 < len(clean):
-                    portion_fusion = f"{clean[j].strip()} {clean[j+1].strip()}{clean[j+2].strip()}"
-                    fusion.append(portion_fusion)
+                    texte = f"{clean[j].strip()} {clean[j+1].strip()}{clean[j+2].strip()}"
+                    fusion.append(texte)
                     j += 3
                 else:
                     fusion.append(clean[j].strip())
@@ -54,23 +49,23 @@ def reformater(table: str) -> str:
             lignes_nettoyees.append('\t'.join(fusion))
             continue
 
-        # Données classiques → structure à 4 colonnes : label, val100g, valportion, AR
-        if len(clean) >= 4:
-            lignes_nettoyees.append('\t'.join([clean[0], clean[1], clean[2], clean[3]]))
+        # Étape 4 : compléter pour avoir toujours 4 colonnes
+        if len(clean) == 4:
+            lignes_nettoyees.append('\t'.join([c.strip() for c in clean]))
         elif len(clean) == 3:
-            lignes_nettoyees.append('\t'.join([clean[0], clean[1], clean[2], '']))
+            lignes_nettoyees.append('\t'.join([clean[0].strip(), clean[1].strip(), clean[2].strip(), '']))
         else:
-            continue
+            continue  # ignorer les lignes incomplètes ou mal formées
 
     return '\n'.join(lignes_nettoyees)
 
 if st.button("🔄 Reformater") and input_text.strip():
     resultat = reformater(input_text)
 
-    st.subheader("✅ Résultat brut (collable dans Excel) :")
+    st.subheader("✅ Résultat brut (Excel) :")
     st.text_area("🧾 Résultat :", value=resultat, height=300)
 
-    st.subheader("📋 Aperçu du tableau (copiable dans CKEditor, Word...) :")
+    st.subheader("📋 Tableau visuel (CKEditor / Word) :")
 
     html = "<table border='1' cellspacing='0' cellpadding='4'>"
     for ligne in resultat.strip().split('\n'):
@@ -81,4 +76,4 @@ if st.button("🔄 Reformater") and input_text.strip():
     html += "</table>"
 
     st.markdown(html, unsafe_allow_html=True)
-    st.markdown("_Sélectionne ce tableau à la main pour le copier dans CKEditor ou Word._")
+    st.markdown("_👉 Sélectionne ce tableau avec ta souris, puis colle-le dans Word ou CKEditor._")
